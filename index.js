@@ -1,5 +1,7 @@
 const fs = require("fs");
 const path = require("path");
+
+const ForgeSDK = require("forge-apis");
 const writeXlsxFile = require("write-excel-file/node");
 const { ModelDerivativeClient, ManifestHelper } = require("forge-server-utils");
 const { SvfReader, GltfWriter } = require("forge-convert-utils");
@@ -121,26 +123,21 @@ async function name() {
     };
   });
 
-  await writeXlsxFile(objects, {
-    schema,
-    headerStyle: {
-      backgroundColor: "#eeeeee",
+  try {
+    await writeXlsxFile(objects, {
+      schema,
+      headerStyle: {
+        backgroundColor: "#eeeeee",
 
-      fontWeight: "bold",
-      align: "center",
-    },
-    filePath: `file.xlsx`,
-  });
-  console.log("Done*********");
-
-  //   try {
-  //     let content = JSON.stringify(resultElements, null, 2);
-
-  //     fs.writeFileSync("test.csv", content);
-  //     console.log("Done*********");
-  //   } catch (error) {
-  //     console.log(error);
-  //   }
+        fontWeight: "bold",
+        align: "center",
+      },
+      filePath: `file.xlsx`,
+    });
+    console.log("Done*********");
+  } catch (error) {
+    console.log(error);
+  }
 }
 name();
 
@@ -179,10 +176,10 @@ const hasIdentityData = (arr) => {
 };
 
 async function getModelviewProperties(urn, guid) {
+  const credentials = await oAuth2();
+  console.log();
   while (true) {
     try {
-      const credentials = await oAuth2();
-
       const url = `	https://developer.api.autodesk.com/modelderivative/v2/designdata/${urn}/metadata/${guid}/properties`;
       const response = await axios({
         method: "GET",
@@ -210,10 +207,17 @@ async function getModelviewProperties(urn, guid) {
   }
 }
 
+const oAuth2TwoLegged = new ForgeSDK.AuthClientTwoLegged(
+  FORGE_CLIENT_ID,
+  FORGE_CLIENT_SECRET,
+  ["data:read", "data:create", "data:write"],
+  false
+);
+
 async function oAuth2() {
-  return await (
-    await axios("http://10.25.38.36:9090/projects/credentials")
-  ).data;
+  const credentials = await oAuth2TwoLegged.authenticate();
+
+  return credentials.access_token;
 }
 
 const dummyObject = {
@@ -255,6 +259,15 @@ async function delay(ms) {
     }, ms);
   });
 }
+
+//   try {
+//     let content = JSON.stringify(resultElements, null, 2);
+
+//     fs.writeFileSync("test.csv", content);
+//     console.log("Done*********");
+//   } catch (error) {
+//     console.log(error);
+//   }
 
 /*
 
