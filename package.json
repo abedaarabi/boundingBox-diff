@@ -1,0 +1,21 @@
+{
+  "name": "forge-unit",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.26.1",
+    "dotenv": "^16.0.0",
+    "forge-convert-utils": "^3.6.3",
+    "forge-server-utils": "^8.3.5",
+    "node-fetch": "^3.2.3",
+    "write-excel-file": "^1.3.16"
+  },
+  "devDependencies": {},
+  "description": ""
+}
