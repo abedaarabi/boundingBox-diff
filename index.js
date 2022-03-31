@@ -73,45 +73,65 @@ async function run(urn) {
     });
     return fargments;
   });
-  return filteredRsult.flat().filter((i) => i);
+  return filteredRsult?.flat().filter((i) => i);
 }
 
 async function name() {
   //k09
-  const modelV1 = await run(
-    "dXJuOmFkc2sud2lwcHJvZDpmcy5maWxlOnZmLnNmNERnLTNjUXdTR0dWS2JnSGxCUlE_dmVyc2lvbj0yNw"
-  );
-  const modelV2 = await run(
-    "dXJuOmFkc2sud2lwcHJvZDpmcy5maWxlOnZmLnNmNERnLTNjUXdTR0dWS2JnSGxCUlE_dmVyc2lvbj0yOQ"
-  );
+  const currentURN =
+    "dXJuOmFkc2sud2lwcHJvZDpmcy5maWxlOnZmLmtoNVJQMFIzVDBDVzRQZWt0a0FzRFE_dmVyc2lvbj00Mw";
+  const prevURN = getPrevURN(currentURN, 6);
 
-  const result1 = getKeyi(modelV1);
-  const result2 = getKeyi(modelV2);
+  const modelV1 = await run(prevURN);
+  const modelV2 = await run(currentURN);
+
+  const result1 = getKeyIndex(modelV1);
+  const result2 = getKeyIndex(modelV2);
 
   const set = Array.from(new Set([...result1.ids, ...result2.ids]));
 
   const resultElements = set
-    .map((i, idx) => {
-      const idx1 = result1.i[i];
-      const idx2 = result2.i[i];
+    .map((externalId) => {
+      const idx1 = result1.index[externalId];
+      const idx2 = result2.index[externalId];
 
+      //Deep comparing params🧮
+
+      // if (
+      //   modelV1[idx1] &&
+      //   modelV2[idx2] &&
+      //   modelV1[idx1].externalId === modelV2[idx2].externalId
+      // ) {
+      //   for (const key in modelV1[idx1]) {
+      //     if (key !== "objectid" && modelV1[idx1][key] !== modelV2[idx2][key]) {
+      //       const befor = { [key]: modelV1[idx1] };
+      //       const after = { [key]: modelV2[idx2] };
+
+      //       return {
+      //         id: externalId,
+      //         msg: "element changed!",
+      //         elt: { befor, after },
+      //       };
+      //     }
+      //   }
+      // }
       if (!idx1 && idx2) {
-        return { id: i, msg: "element added", elt: modelV2[result2.i[i]] };
+        return { id: externalId, msg: "element added", elt: modelV2[idx2] };
       }
       if (idx1 && !idx2) {
         return {
-          id: i,
+          id: externalId,
           msg: "element removed",
-          elt: modelV1[result1.i[i]],
+          elt: modelV1[idx1],
         };
       }
 
-      if (modelV1[idx]?.boundingBox !== modelV2[idx]?.boundingBox) {
-        return { id: i, msg: "element moved!", elt: modelV2[result2.i[i]] };
+      if (modelV1[idx1]?.boundingBox !== modelV2[idx2]?.boundingBox) {
+        return { id: externalId, msg: "element moved", elt: modelV2[idx2] };
       }
     })
-    .filter((elt) => elt?.msg === "element moved!");
-  console.log(resultElements);
+    .filter((item) => item?.msg === "element moved");
+
   const objects = resultElements.map((i) => i.elt);
 
   const schema = Object.keys(objects[0]).map((i) => {
@@ -141,14 +161,14 @@ async function name() {
 }
 name();
 
-function getKeyi(array) {
-  const i = array.reduce((acc, val, idx) => {
+function getKeyIndex(array) {
+  const index = array.reduce((acc, val, idx) => {
     acc[val.externalId] = idx;
     return acc;
   }, {});
   const ids = array.map((i) => i.externalId);
 
-  return { i, ids };
+  return { index, ids };
 }
 
 function unionBoundingBoxes(bbox1) {
@@ -163,7 +183,7 @@ function unionBoundingBoxes(bbox1) {
 }
 
 const hasIdentityData = (arr) => {
-  const eltCollection = arr.filter((elt) => {
+  const eltCollection = arr?.filter((elt) => {
     if (
       elt.properties["Identity Data"] &&
       elt.properties["Identity Data"]["Type Name"]
@@ -177,7 +197,7 @@ const hasIdentityData = (arr) => {
 
 async function getModelviewProperties(urn, guid) {
   const credentials = await oAuth2();
-  console.log();
+
   while (true) {
     try {
       const url = `	https://developer.api.autodesk.com/modelderivative/v2/designdata/${urn}/metadata/${guid}/properties`;
@@ -191,18 +211,15 @@ async function getModelviewProperties(urn, guid) {
           "x-ads-derivative-format": "fallback",
         },
       });
-      if (response.status === 201) {
-        console.log(
-          ` Status:${response.status} Preparing json data for model`,
-          itemMetaData.fileName
-        );
+      if (response.status === 202) {
+        console.log(` Status:${response.status} Preparing json data for model`);
         await delay(10 * 1000);
         continue;
       } else {
         return response.data;
       }
     } catch (error) {
-      console.log(error);
+      console.log(error.message);
     }
   }
 }
@@ -292,3 +309,20 @@ function getObjectBounds(model, dbid) {
     return objectBounds;
 }
 **/
+
+function getPrevURN(currentURN, pervVersion) {
+  let buff = new Buffer(currentURN, "base64");
+  let text = buff.toString("ascii");
+
+  const versionNumber = +text.split("=")[1] - pervVersion;
+  const urn = text.split("=")[0];
+
+  const prevURN = urn + "=" + versionNumber;
+
+  const prev = Buffer.from(prevURN)
+    .toString("base64")
+    .replace("/", "_")
+    .replace("==", "");
+
+  return prev;
+}
