@@ -56,8 +56,9 @@ async function run(urn) {
   }
 
   const properties = await getModelviewProperties(urn, gGuid);
+  const projectMetaData = properties.data.collection;
+  const resultProps = hasIdentityData(projectMetaData);
 
-  const resultProps = hasIdentityData(properties.data.collection);
   const filteredRsult = resultProps.map((prop) => {
     const propResult = topLevelObj(prop);
 
@@ -71,16 +72,20 @@ async function run(urn) {
         };
       }
     });
-    return fargments;
+    return fargments.filter((i) => i);
   });
-  return filteredRsult?.flat().filter((i) => i);
+
+  return filteredRsult?.flat();
 }
 
 async function name() {
   //k09
   const currentURN =
-    "dXJuOmFkc2sud2lwcHJvZDpmcy5maWxlOnZmLmtoNVJQMFIzVDBDVzRQZWt0a0FzRFE_dmVyc2lvbj00Mw";
-  const prevURN = getPrevURN(currentURN, 6);
+    "dXJuOmFkc2sud2lwcHJvZDpmcy5maWxlOnZmLlZ1b3hTMDhWUjJLN0JLOWtOd0x4c0E_dmVyc2lvbj0xOQ";
+  // const prevURN =
+  //   "dXJuOmFkc2sud2lwcHJvZDpmcy5maWxlOnZmLkVzUE5rX0d4VFcybV9EWFh1VXNjLUE_dmVyc2lvbj0xMDk";
+  const prevURN = getPrevURN(currentURN, 1);
+  console.log(prevURN);
 
   const modelV1 = await run(prevURN);
   const modelV2 = await run(currentURN);
@@ -90,74 +95,76 @@ async function name() {
 
   const set = Array.from(new Set([...result1.ids, ...result2.ids]));
 
-  const resultElements = set
-    .map((externalId) => {
-      const idx1 = result1.index[externalId];
-      const idx2 = result2.index[externalId];
+  const resultElements = set.map((externalId) => {
+    const idx1 = result1.index[externalId];
+    const idx2 = result2.index[externalId];
 
-      //Deep comparing params🧮
+    //Deep comparing params🧮
 
-      // if (
-      //   modelV1[idx1] &&
-      //   modelV2[idx2] &&
-      //   modelV1[idx1].externalId === modelV2[idx2].externalId
-      // ) {
-      //   for (const key in modelV1[idx1]) {
-      //     if (key !== "objectid" && modelV1[idx1][key] !== modelV2[idx2][key]) {
-      //       const befor = { [key]: modelV1[idx1] };
-      //       const after = { [key]: modelV2[idx2] };
+    if (
+      modelV1[idx1] &&
+      modelV2[idx2] &&
+      modelV1[idx1].externalId === modelV2[idx2].externalId
+    ) {
+      for (const key in modelV1[idx1]) {
+        if (key !== "objectid" && modelV1[idx1][key] !== modelV2[idx2][key]) {
+          const befor = modelV1[idx1];
+          const after = modelV2[idx2];
+          // const rvtdbId = modelV2[idx1]["rvtdbId"];
+          // const name = modelV2[idx1]["name"];
+          const whatIschanged = {
+            ...befor,
+            ...after,
+          };
 
-      //       return {
-      //         id: externalId,
-      //         msg: "element changed!",
-      //         elt: { befor, after },
-      //       };
-      //     }
-      //   }
-      // }
-      if (!idx1 && idx2) {
-        return { id: externalId, msg: "element added", elt: modelV2[idx2] };
+          return {
+            id: externalId,
+            msg: "element changed",
+            ...whatIschanged,
+
+            // elt: { befor, after },
+          };
+        }
       }
-      if (idx1 && !idx2) {
-        return {
-          id: externalId,
-          msg: "element removed",
-          elt: modelV1[idx1],
-        };
-      }
+    }
+    if (!idx1 && idx2) {
+      return { id: externalId, msg: "element added", ...modelV2[idx2] };
+    }
+    if (idx1 && !idx2) {
+      return {
+        id: externalId,
+        msg: "element removed",
+        ...modelV1[idx1],
+      };
+    }
 
-      if (modelV1[idx1]?.boundingBox !== modelV2[idx2]?.boundingBox) {
-        return { id: externalId, msg: "element moved", elt: modelV2[idx2] };
-      }
-    })
-    .filter((item) => item?.msg === "element moved");
-
-  const objects = resultElements.map((i) => i.elt);
-
-  const schema = Object.keys(objects[0]).map((i) => {
-    return {
-      column: i,
-      //   type: String,
-      width: 15,
-      value: (elt) => elt[i],
-    };
+    // if (modelV1[idx1]?.boundingBox !== modelV2[idx2]?.boundingBox) {
+    //   return { id: externalId, msg: "element moved", elt: modelV2[idx2] };
+    // }
   });
+  // .map((item) => {
+  //   if (item?.msg === "element changed") {
+  //     return item.elt;
+  //   }
+  // });
 
-  try {
-    await writeXlsxFile(objects, {
-      schema,
-      headerStyle: {
-        backgroundColor: "#eeeeee",
+  // console.log(JSON.stringify(resultElements, null, 2));
 
-        fontWeight: "bold",
-        align: "center",
-      },
-      filePath: `file.xlsx`,
-    });
-    console.log("Done*********");
-  } catch (error) {
-    console.log(error);
-  }
+  const elementChanged = resultElements.filter(
+    (item) => item?.msg === "element changed"
+  );
+  await writeXls("element changed.xlsx", elementChanged);
+
+  const elementAdded = resultElements.filter(
+    (item) => item?.msg === "element added"
+  );
+
+  await writeXls("element added.xlsx", elementAdded);
+
+  const elementRemoved = resultElements.filter(
+    (item) => item?.msg === "element removed"
+  );
+  await writeXls("element removed.xlsx", elementRemoved);
 }
 name();
 
@@ -197,13 +204,26 @@ const hasIdentityData = (arr) => {
 
 async function getModelviewProperties(urn, guid) {
   const credentials = await oAuth2();
+  const guidd = new ForgeSDK.DerivativesApi();
 
   while (true) {
     try {
+      // const itemProperties = await guidd.getModelviewProperties(
+      //   urn,
+      //   guid,
+      //   { forceget: true },
+      //   null,
+      //   credentials
+      // );
+      // console.log(itemProperties);
+      // return;
       const url = `	https://developer.api.autodesk.com/modelderivative/v2/designdata/${urn}/metadata/${guid}/properties`;
       const response = await axios({
         method: "GET",
         url,
+        params: {
+          forceget: true,
+        },
         headers: {
           "content-type": "application/vnd.api+json",
           Authorization: `Bearer ${credentials}`,
@@ -239,16 +259,20 @@ async function oAuth2() {
 
 const dummyObject = {
   name: "key not exist",
+  rvtdbId: "key not exist",
   objectid: "key not exist",
-  version_id: "key not exist",
+  // version_id: "key not exist",
   externalId: "key not exist",
   "Type Name": "key not exist",
-
+  boundingBox: "key not exist",
   Workset: "key not exist",
   "Type Sorting": "key not exist",
   CCSTypeID: "key not exist",
   CCSTypeID_Type: "key not exist",
   CCSClassCode_Type: "key not exist",
+  Length: "key not exist",
+  Area: "key not exist",
+  Volume: "key not exist",
 };
 
 const isObj = (obj) => typeof obj === "object" && !Array.isArray(obj);
@@ -322,7 +346,33 @@ function getPrevURN(currentURN, pervVersion) {
   const prev = Buffer.from(prevURN)
     .toString("base64")
     .replace("/", "_")
-    .replace("==", "");
+    .replace("=", "");
 
   return prev;
+}
+
+async function writeXls(fileName, data) {
+  try {
+    const schema = Object.keys({ ...dummyObject }).map((i) => {
+      return {
+        column: i,
+        //   type: String,
+        width: 15,
+        value: (elt) => elt[i],
+      };
+    });
+    await writeXlsxFile(data, {
+      schema,
+      headerStyle: {
+        backgroundColor: "#eeeeee",
+
+        fontWeight: "bold",
+        align: "center",
+      },
+      filePath: "output/" + fileName,
+    });
+    console.log("Done*********");
+  } catch (error) {
+    console.log(error);
+  }
 }
